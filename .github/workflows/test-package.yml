@@ -19,18 +19,20 @@ jobs:
           submodules: recursive
           persist-credentials: false
       - uses: microsoft/setup-msbuild@v2
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         with:
           path: ~/AppData/Local/vcpkg/archives
-          key: xbox-pr298-vcpkg-windows2022-v1
+          key: xbox-pr298-vcpkg-windows2022-release-v1
       - name: Bootstrap dependencies
         shell: pwsh
         run: |
           ./vcpkg/bootstrap-vcpkg.bat
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $toolchain = "$pwd/vcpkg/scripts/buildsystems/vcpkg.cmake"
+          New-Item -ItemType Directory -Force build-triplets | Out-Null
+          @('set(VCPKG_TARGET_ARCHITECTURE x64)', 'set(VCPKG_CRT_LINKAGE dynamic)', 'set(VCPKG_LIBRARY_LINKAGE dynamic)', 'set(VCPKG_CMAKE_SYSTEM_NAME WindowsStore)', 'set(VCPKG_CMAKE_SYSTEM_VERSION 10.0)', 'set(VCPKG_BUILD_TYPE release)') | Set-Content build-triplets/x64-uwp.cmake
           foreach ($project in @('third_party/moonlight-common-c', 'libgamestream')) {
-            cmake -S $project -B "$project/build" -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DVCPKG_TARGET_TRIPLET=x64-uwp -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DTARGET_UWP=ON -DVCPKG_MANIFEST_MODE=ON "-DVCPKG_MANIFEST_DIR=$pwd" "-DVCPKG_INSTALLED_DIR=$pwd/vcpkg_installed" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+            cmake -S $project -B "$project/build" -G "Visual Studio 17 2022" -A x64 "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DVCPKG_TARGET_TRIPLET=x64-uwp "-DVCPKG_OVERLAY_TRIPLETS=$pwd/build-triplets" -DCMAKE_SYSTEM_NAME=WindowsStore "-DCMAKE_SYSTEM_VERSION=10.0" -DTARGET_UWP=ON -DVCPKG_MANIFEST_MODE=ON "-DVCPKG_MANIFEST_DIR=$pwd" "-DVCPKG_INSTALLED_DIR=$pwd/vcpkg_installed" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             if ($LASTEXITCODE) { exit $LASTEXITCODE }
           }
           nuget restore moonlight-xbox-dx.sln
@@ -53,6 +55,11 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           'Source: https://github.com/TheElixZammuto/moonlight-xbox/pull/298; commit 69c6f5e51bd5706d6d9cc2ca540a55b2343d20d9. Experimental, not hardware validated.' | Set-Content output/BUILD-INFO.txt
           Get-ChildItem output -Recurse -File | Where-Object Extension -In '.appx','.appxbundle','.msix','.msixbundle' | Get-FileHash -Algorithm SHA256 | Format-List | Out-File output/SHA256.txt
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: xbox-pr298-vcpkg-windows2022-release-v1
       - uses: actions/upload-artifact@v4
         with:
           name: Moonlight-PR298-Xbox-Test
