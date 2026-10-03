@@ -27,7 +27,16 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ~/AppData/Local/vcpkg/archives
-          key: xbox-pr298-vcpkg-windows2022-release-v1
+          key: xbox-rendering-ab-windows2022-release-v2
+      - name: Repair malformed FFmpeg patch context
+        shell: pwsh
+        run: |
+          $patch = "$pwd/vcpkg-overlays/ffmpeg/9900-check-d3derr-wasstilldrawing.patch"
+          $text = [IO.File]::ReadAllText($patch).Replace("`r`n", "`n")
+          $text = $text.Replace("`n`n+/* D3D11VA", "`n `n+/* D3D11VA")
+          [IO.File]::WriteAllText($patch, $text)
+          git apply --numstat $patch
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Bootstrap dependencies
         shell: pwsh
         run: |
@@ -69,13 +78,13 @@ jobs:
           Export-PfxCertificate -Cert $cert -FilePath "$pwd/test.pfx" -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
           msbuild moonlight-xbox-dx.sln /m /p:Configuration=Release /p:Platform=x64 /p:AppxBundle=Always /p:AppxBundlePlatforms=x64 "/p:AppxPackageDir=$pwd/output/" /p:AppxPackageSigningEnabled=true "/p:PackageCertificateKeyFile=$pwd/test.pfx" /p:PackageCertificateThumbprint= "/p:PackageCertificatePassword=$password" /p:UapAppxPackageBuildMode=SideLoadOnly
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          "Source branch: andyg.revert-9dcf6b0; commit 6e646a253f0dbba33ebcff274ec669655f0c96bb; variant: $variant. Direct = commented return; Copy = active return. Not hardware validated." | Set-Content output/BUILD-INFO.txt
+          "Source branch: andyg.revert-9dcf6b0; commit 6e646a253f0dbba33ebcff274ec669655f0c96bb; variant: $variant. Direct = commented return; Copy = active return. Shared build repair: restore missing context-space in FFmpeg patch. Not hardware validated." | Set-Content output/BUILD-INFO.txt
           Get-ChildItem output -Recurse -File | Where-Object Extension -In '.appx','.appxbundle','.msix','.msixbundle' | Get-FileHash -Algorithm SHA256 | Format-List | Out-File output/SHA256.txt
       - uses: actions/cache/save@v4
         if: always()
         with:
           path: ~/AppData/Local/vcpkg/archives
-          key: xbox-pr298-vcpkg-windows2022-release-v1
+          key: xbox-rendering-ab-windows2022-release-v2
       - uses: actions/upload-artifact@v4
         with:
           name: Moonlight-AB-${{ matrix.variant }}
