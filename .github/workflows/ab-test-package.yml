@@ -62,7 +62,7 @@ jobs:
           if ($variant -eq 'Copy') {
             [IO.File]::WriteAllText("$pwd/$decoder", $original.Replace($needle, 'return; // uncomment to test CopySubresourceRegion1 method'))
           }
-          git diff --check
+          git diff --check -- Streaming/FFmpegDecoder.cpp
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           git diff -- Streaming/FFmpegDecoder.cpp
           [xml]$manifest = Get-Content Package.appxmanifest
